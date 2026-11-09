@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AVA Fleet</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#004B6E">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AVA Fleet">
+<script src="config.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+<script>tailwind.config={theme:{extend:{colors:{ava:{dark:'#004B6E',med:'#006B9E',light:'#E0F0F7'}}}}}</script>
+<style>[x-cloak]{display:none!important}</style></head>
+<body class="bg-slate-100 text-slate-800 min-h-screen" x-data="app()" x-cloak>
+<header class="bg-ava-dark text-white sticky top-0 z-10 shadow">
+ <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+  <h1 class="font-bold text-sm uppercase tracking-wide">AVA Passengers Transport</h1>
+  <span class="text-xs font-semibold bg-white/10 px-3 py-1.5 rounded-lg" x-text="role=='admin'?'Admin':'Driver'"></span>
+  </div></header>
+
+<div x-show="msg" class="fixed top-16 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-xl text-sm text-white shadow-lg" :class="err?'bg-red-600':'bg-emerald-600'" x-text="msg"></div>
+<div x-show="busy" class="fixed inset-0 bg-black/30 z-30 flex items-center justify-center text-white font-semibold">Working...</div>
+
+<main class="max-w-5xl mx-auto p-4">
+<!-- DRIVER -->
+<section x-show="role=='driver'" class="max-w-md mx-auto space-y-4">
+ <form x-show="!me" @submit.prevent="login()" class="bg-white rounded-2xl shadow p-6 space-y-4 mt-4">
+  <h2 class="text-xl font-bold text-ava-dark text-center">Driver Sign In</h2>
+  <p class="text-xs text-slate-500 text-center">Use the email and phone number registered by the office.</p>
+  <input type="email" x-model="lf.email" required placeholder="Email" class="w-full border rounded-xl px-3 py-2.5 text-sm">
+  <input type="tel" x-model="lf.phone" required placeholder="Phone (+971 50 123 4567)" class="w-full border rounded-xl px-3 py-2.5 text-sm">
+  <button class="w-full bg-ava-dark text-white font-bold py-3 rounded-xl text-sm">Sign In</button>
+ </form>
+
+ <div x-show="me" class="space-y-4">
+  <div class="bg-ava-dark text-white rounded-2xl p-4 flex justify-between items-center">
+   <div><p class="font-bold" x-text="me?.name"></p><p class="text-xs text-ava-light" x-text="me?.email+' • '+me?.phone"></p>
+    <p class="text-xs mt-1">Bus: <b x-text="me?.bus"></b></p></div>
+   <button @click="logout()" class="text-xs bg-white/10 px-3 py-2 rounded-xl">Logout</button></div>
+  <div class="grid grid-cols-3 gap-1 bg-white p-1 rounded-2xl shadow-sm text-xs font-bold">
+   <template x-for="t in [['odometer','Odometer'],['trip','Extra Trip'],['expense','Expenses']]"><button @click="tab=t[0]" :class="tab==t[0]?'bg-ava-dark text-white':'text-slate-600'" class="py-2.5 rounded-xl" x-text="t[1]"></button></template></div>
+
+  <!-- Odometer -->
+  <form x-show="tab=='odometer'" @submit.prevent="send('odometer',o,()=>o={...o,start:'',end:'',startPhoto:'',endPhoto:''})" class="bg-white rounded-2xl shadow p-5 space-y-3 text-sm">
+   <label class="text-xs font-semibold uppercase">Bus</label>
+   <select x-model="o.bus" class="w-full border rounded-xl px-3 py-2"><template x-for="b in (me?.buses||[])" :key="b"><option :value="b" x-text="b"></option></template></select>
+   <label class="text-xs font-semibold uppercase">Date</label>
+   <input x-model="o.date" required class="w-full border rounded-xl px-3 py-2">
+   <div class="bg-slate-50 p-3 rounded-xl space-y-2"><b class="text-xs uppercase">Start odometer</b>
+    <input type="number" step="0.1" x-model="o.start" required placeholder="Start KM" class="w-full border rounded-xl px-3 py-2">
+    <input type="file" accept="image/*" capture="environment" @change="photo($event,'startPhoto',o)" class="text-xs w-full">
+    <img x-show="o.startPhoto" :src="o.startPhoto" class="h-28 w-full object-cover rounded-xl"></div>
+   <div class="bg-slate-50 p-3 rounded-xl space-y-2"><b class="text-xs uppercase">End odometer</b>
+    <input type="number" step="0.1" x-model="o.end" required placeholder="End KM" class="w-full border rounded-xl px-3 py-2">
+    <input type="file" accept="image/*" capture="environment" @change="photo($event,'endPhoto',o)" class="text-xs w-full">
+    <img x-show="o.endPhoto" :src="o.endPhoto" class="h-28 w-full object-cover rounded-xl"></div>
+   <p class="text-xs font-bold text-ava-dark" x-show="o.start&&o.end" x-text="'Total: '+Math.max(0,o.end-o.start).toFixed(1)+' KM'"></p>
+   <button class="w-full bg-ava-dark text-white font-bold py-3 rounded-xl">Submit Odometer</button></form>
+
+  <!-- Trip -->
+  <form x-show="tab=='trip'" @submit.prevent="send('trip',t,()=>t={...t,from:'',to:'',route:'',reason:''})" class="bg-white rounded-2xl shadow p-5 space-y-3 text-sm">
+   <input x-model="t.date" required class="w-full border rounded-xl px-3 py-2">
+   <div class="grid grid-cols-2 gap-2"><input type="time" x-model="t.from" required class="border rounded-xl px-3 py-2"><input type="time" x-model="t.to" required class="border rounded-xl px-3 py-2"></div>
+   <textarea x-model="t.route" required rows="3" placeholder="Route / client" class="w-full border rounded-xl p-3"></textarea>
+   <input x-model="t.reason" required placeholder="Reason" class="w-full border rounded-xl px-3 py-2">
+   <button class="w-full bg-ava-dark text-white font-bold py-3 rounded-xl">Submit Extra Trip</button></form>
+
+  <!-- Expense -->
+  <form x-show="tab=='expense'" @submit.prevent="send('expense',x,()=>x={...x,amount:'',liters:'',reason:'',receipt:''})" class="bg-white rounded-2xl shadow p-5 space-y-3 text-sm">
+   <input x-model="x.date" required class="w-full border rounded-xl px-3 py-2">
+   <div class="grid grid-cols-2 gap-2">
+    <select x-model="x.category" class="border rounded-xl px-3 py-2"><option>Fuel</option><option>Salik / Toll</option><option>Parking</option><option>Minor Maintenance</option><option>Other</option></select>
+    <input type="number" step="0.01" x-model="x.amount" required placeholder="AED" class="border rounded-xl px-3 py-2"></div>
+   <input x-show="x.category=='Fuel'" type="number" step="0.1" x-model="x.liters" placeholder="Liters" class="w-full border rounded-xl px-3 py-2">
+   <input x-model="x.reason" required placeholder="Description" class="w-full border rounded-xl px-3 py-2">
+   <input type="file" accept="image/*" capture="environment" @change="photo($event,'receipt',x)" class="text-xs w-full">
+   <img x-show="x.receipt" :src="x.receipt" class="h-28 w-full object-cover rounded-xl">
+   <button class="w-full bg-ava-dark text-white font-bold py-3 rounded-xl">Submit Expense</button></form>
+ </div>
+</section>
+
+<!-- ADMIN -->
+<section x-show="role=='admin'" class="space-y-4">
+ <form x-show="!adm" @submit.prevent="loadAdmin()" class="bg-white rounded-2xl shadow p-6 max-w-sm mx-auto mt-4 space-y-3">
+  <h2 class="font-bold text-ava-dark text-lg text-center">Admin Sign In</h2>
+  <input type="password" x-model="pw" required placeholder="Admin password" class="w-full border rounded-xl px-3 py-2.5 text-sm">
+  <button class="w-full bg-ava-dark text-white font-bold py-3 rounded-xl text-sm">Enter</button></form>
+
+ <div x-show="adm" class="space-y-4">
+  <div class="bg-white rounded-2xl p-2 shadow-sm flex flex-wrap gap-2 items-center text-xs font-bold">
+   <template x-for="t in [['log','Submissions'],['drivers','Drivers'],['vehicles','Vehicles']]"><button @click="atab=t[0]" :class="atab==t[0]?'bg-ava-dark text-white':'text-slate-600'" class="px-4 py-2 rounded-xl" x-text="t[1]"></button></template>
+   <span class="flex-1"></span>
+   <a :href="adm?.sheetUrl" target="_blank" class="text-ava-med underline">Open Sheet</a>
+   <a :href="adm?.folderUrl" target="_blank" class="text-ava-med underline px-2">Open Drive Folder</a></div>
+
+  <div x-show="atab=='log'" class="bg-white rounded-2xl shadow overflow-x-auto"><table class="w-full text-xs text-left">
+   <thead class="bg-slate-100 uppercase text-[10px]"><tr><th class="p-3">Date</th><th>Type</th><th>Driver</th><th>Bus</th><th>Details</th><th>Files</th></tr></thead>
+   <tbody class="divide-y"><template x-for="r in logRows()" :key="r.k"><tr>
+    <td class="p-3" x-text="r.Date"></td><td x-text="r.type"></td><td x-text="r.Driver"></td><td x-text="r.Bus" class="font-bold"></td><td x-text="r.info"></td>
+    <td><template x-for="u in r.files"><a :href="u" target="_blank" class="text-ava-med underline mr-2">Photo</a></template></td></tr></template></tbody></table></div>
+
+  <div x-show="atab=='drivers'" class="bg-white rounded-2xl shadow p-5 space-y-4">
+   <form @submit.prevent="save('Drivers',df,()=>df={})" class="grid sm:grid-cols-5 gap-2 text-xs">
+    <input x-model="df.Name" required placeholder="Name" class="border rounded-xl px-3 py-2">
+    <input type="email" x-model="df.Email" required placeholder="Email" class="border rounded-xl px-3 py-2">
+    <input x-model="df.Phone" required placeholder="Phone" class="border rounded-xl px-3 py-2">
+    <select x-model="df.Bus" class="border rounded-xl px-3 py-2"><option value="">Bus</option><template x-for="v in (adm?.vehicles||[])"><option x-text="v.Bus"></option></template></select>
+    <button class="bg-ava-dark text-white font-bold rounded-xl py-2" x-text="df.ID?'Update':'Add Driver'"></button></form>
+   <template x-for="d in (adm?.drivers||[])" :key="d.ID"><div class="flex justify-between items-center border rounded-xl p-3 text-xs">
+    <div><b x-text="d.Name"></b> • <span x-text="d.Bus"></span><br><span class="text-slate-500" x-text="d.Email+' • '+d.Phone"></span></div>
+    <div class="space-x-3"><button @click="df={...d,Phone:String(d.Phone)}" class="text-ava-med font-semibold">Edit</button><button @click="del('Drivers',d.ID)" class="text-red-600 font-semibold">Remove</button></div></div></template></div>
+
+  <div x-show="atab=='vehicles'" class="bg-white rounded-2xl shadow p-5 space-y-4">
+   <form @submit.prevent="save('Vehicles',vf,()=>vf={})" class="grid sm:grid-cols-4 gap-2 text-xs">
+    <input x-model="vf.Bus" required placeholder="Bus / Plate" class="border rounded-xl px-3 py-2">
+    <input x-model="vf.Capacity" placeholder="Capacity" class="border rounded-xl px-3 py-2">
+    <input x-model="vf.Model" placeholder="Model" class="border rounded-xl px-3 py-2">
+    <input x-model="vf.MulkiyaExpiry" placeholder="Mulkiya expiry" class="border rounded-xl px-3 py-2">
+    <input x-model="vf.InsuranceExpiry" placeholder="Insurance expiry" class="border rounded-xl px-3 py-2">
+    <input x-model="vf.NextServiceKm" placeholder="Next service KM" class="border rounded-xl px-3 py-2">
+    <button class="bg-ava-dark text-white font-bold rounded-xl py-2 sm:col-span-2" x-text="vf.ID?'Update Bus':'Add Bus'"></button></form>
+   <template x-for="v in (adm?.vehicles||[])" :key="v.ID"><div class="flex justify-between items-center border rounded-xl p-3 text-xs">
+    <div><b x-text="v.Bus"></b> • <span x-text="v.Capacity+' '+v.Model"></span><br><span class="text-slate-500" x-text="'Mulkiya '+v.MulkiyaExpiry+' • Insurance '+v.InsuranceExpiry+' • Service '+v.NextServiceKm+' KM'"></span></div>
+    <div class="space-x-3"><button @click="vf={...v}" class="text-ava-med font-semibold">Edit</button><button @click="del('Vehicles',v.ID)" class="text-red-600 font-semibold">Remove</button></div></div></template></div>
+ </div>
+</section>
+</main>
+
+<script>
+const run=async(fn,...a)=>{let r;
+ try{r=await fetch(window.AVA_API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn,args:a})})}catch(e){throw new Error('No connection. Check your internet and try again.')}
+ let j;try{j=await r.json()}catch(e){throw new Error('Server error. Check the API URL in config.js.')}
+ if(!j.ok)throw new Error(j.error||'Request failed');return j.data};
+const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+String(d.getFullYear()).slice(-2)};
+const ls=k=>{try{return localStorage.getItem(k)||''}catch(e){return ''}};
+function app(){return{
+ role:new URLSearchParams(location.search).get('page')==='admin'?'admin':'driver',tab:'odometer',atab:'log',me:null,adm:null,pw:'',busy:false,msg:'',err:false,
+ lf:{email:ls('ava_email'),phone:ls('ava_phone')},
+ o:{bus:'',date:today(),start:'',end:'',startPhoto:'',endPhoto:''},
+ t:{date:today(),from:'',to:'',route:'',reason:''},
+ x:{date:today(),category:'Fuel',amount:'',liters:'',reason:'',receipt:''},
+ df:{},vf:{},
+ toast(m,e){this.msg=m;this.err=!!e;setTimeout(()=>this.msg='',3500)},
+ async call(fn,...a){this.busy=true;try{return await run(fn,...a)}catch(e){this.toast((e.message||String(e)).replace(/^Error: /,''),true);throw e}finally{this.busy=false}},
+ async login(){try{const r=await this.call('login',this.lf.email,this.lf.phone);this.o.bus='';this.me=r;this.$nextTick(()=>{this.o.bus=r.bus});
+   try{localStorage.setItem('ava_email',this.lf.email);localStorage.setItem('ava_phone',this.lf.phone)}catch(e){}}catch(e){}},
+ logout(){this.me=null},
+ async send(kind,f,reset){try{await this.call('submit',kind,this.me.email,this.me.phone,{...f,bus:f.bus||this.me.bus});this.toast('Saved to Google Sheet & Drive');reset()}catch(e){}},
+ photo(ev,key,obj){const file=ev.target.files[0];if(!file)return;const label=this.me.name+' | '+(obj.bus||this.me.bus)+' | '+new Date().toLocaleString();
+  const img=new Image();img.onload=()=>{const s=Math.min(1,1280/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*s;c.height=img.height*s;
+   const g=c.getContext('2d');g.drawImage(img,0,0,c.width,c.height);g.fillStyle='rgba(0,0,0,.7)';g.fillRect(0,c.height-36,c.width,36);g.fillStyle='#fff';g.font='bold 16px sans-serif';g.fillText('AVA | '+label,10,c.height-13);
+   obj[key]=c.toDataURL('image/jpeg',.7)};img.onerror=()=>this.toast('Could not read photo',true);img.src=URL.createObjectURL(file)},
+ async loadAdmin(){try{this.adm=await this.call('adminLoad',this.pw)}catch(e){}},
+ async save(tab,obj,reset){try{await this.call('adminSave',this.pw,tab,obj);reset();await this.loadAdmin()}catch(e){}},
+ async del(tab,id){if(!confirm('Remove this record?'))return;try{await this.call('adminDelete',this.pw,tab,id);await this.loadAdmin()}catch(e){}},
+ logRows(){if(!this.adm)return[];const a=[];
+  this.adm.Odometer.forEach((r,i)=>a.push({...r,k:'o'+i,type:'Odometer',info:r.StartKM+' → '+r.EndKM+' = '+r.TotalKM+' KM',files:[r.StartPhoto,r.EndPhoto].filter(Boolean)}));
+  this.adm.ExtraTrips.forEach((r,i)=>a.push({...r,k:'t'+i,type:'Extra Trip',info:r.From+'-'+r.To+' '+r.Route,files:[]}));
+  this.adm.Expenses.forEach((r,i)=>a.push({...r,k:'e'+i,type:'Expense',info:'AED '+r.AmountAED+' ('+r.Category+')'+(r.Liters?' '+r.Liters+'L':'')+' '+r.Reason,files:[r.Receipt].filter(Boolean)}));
+  return a.sort((p,q)=>q._t-p._t)}
+}}
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script></body></html>
